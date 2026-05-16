@@ -27,6 +27,10 @@ export default defineConfig(({ command }) => {
       __APP_VERSION__: JSON.stringify(pkg.version),
       __DEV_PROXY_CONFIG__: JSON.stringify(devProxyConfig),
     },
+preview: {
+  host: "0.0.0.0",
+  allowedHosts: true
+},
     server: {
       host: true,
       proxy:
