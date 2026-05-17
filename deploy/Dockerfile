@@ -40,12 +40,16 @@ ENV ENABLE_API_PROXY=false
 ENV LOCK_API_PROXY=false
 ENV HIDE_API_CONFIG=false
 ENV SHOW_API_CONFIG=false
+ENV BASIC_AUTH_USERNAME=
+ENV BASIC_AUTH_PASSWORD=
+ENV BASIC_AUTH_REALM=Restricted
 ENV APP_CONFIG_FILE=/etc/gpt-image-playground/config.env
 
 COPY --from=build /app/dist /usr/share/nginx/html
 COPY deploy/nginx.conf /etc/nginx/templates/default.conf.template
 COPY --chmod=755 deploy/load-app-config.envsh /docker-entrypoint.d/01-load-app-config.envsh
 COPY --chmod=755 deploy/migrate-api-env.envsh /docker-entrypoint.d/05-migrate-api-env.envsh
+COPY --chmod=755 deploy/setup-basic-auth.envsh /docker-entrypoint.d/06-setup-basic-auth.envsh
 COPY --chmod=755 deploy/inject-api-url.sh /docker-entrypoint.d/40-inject-api-url.sh
 
 EXPOSE 80

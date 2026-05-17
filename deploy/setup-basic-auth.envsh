@@ -1,0 +1,15 @@
+#!/bin/sh
+
+AUTH_BASIC_REALM=off
+AUTH_BASIC_USER_FILE=/etc/nginx/.htpasswd
+
+touch "$AUTH_BASIC_USER_FILE"
+
+if [ -n "$BASIC_AUTH_USERNAME" ] && [ -n "$BASIC_AUTH_PASSWORD" ]; then
+    AUTH_BASIC_REALM=${BASIC_AUTH_REALM:-Restricted}
+    HASH=$(openssl passwd -apr1 "$BASIC_AUTH_PASSWORD")
+    printf '%s:%s\n' "$BASIC_AUTH_USERNAME" "$HASH" > "$AUTH_BASIC_USER_FILE"
+fi
+
+export AUTH_BASIC_REALM
+export AUTH_BASIC_USER_FILE

@@ -175,6 +175,7 @@ $env:VITE_DEFAULT_API_URL="https://api.openai.com/v1"; npm run deploy:cf
 - `LOCK_API_PROXY`：设为 `true` 时，在 `ENABLE_API_PROXY=true` 的前提下将前端 **API 代理** 开关强制锁定为开启，用户无法关闭。
 - `HIDE_API_CONFIG`：设为 `true` 时隐藏设置弹窗中的 **API 配置** 页面。建议与 `ENABLE_API_PROXY=true`、`LOCK_API_PROXY=true`、`API_PROXY_API_KEY` 一起使用。
 - `SHOW_API_CONFIG`：默认 `false`。如需临时恢复前端 **API 配置** 页面，可设为 `true`。
+- `BASIC_AUTH_USERNAME` / `BASIC_AUTH_PASSWORD`：可选。同时设置后为整个站点和 `/api-proxy` 开启 HTTP Basic Auth，适合直接暴露服务器 IP 时限制访问。
 - `APP_CONFIG_FILE`：可选。Docker 启动时读取的配置文件路径，默认 `/etc/gpt-image-playground/config.env`。文件格式为 `KEY=value`，示例见 `deploy/app.config.example.env`。
 - `HOST` / `PORT`：指定容器内 Nginx 监听的地址和端口（默认 `0.0.0.0:80`）。
 
