@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import { readFileSync } from 'fs'
 import { normalizeDevProxyConfig } from './src/lib/devProxy'
@@ -17,8 +17,10 @@ function loadDevProxyConfig() {
   }
 }
 
-export default defineConfig(({ command }) => {
-  const devProxyConfig = command === 'serve' ? loadDevProxyConfig() : null
+export default defineConfig(({ command, mode }) => {
+  const env = loadEnv(mode, process.cwd(), '')
+  const devProxyConfig = command === 'serve' && mode !== 'test' ? loadDevProxyConfig() : null
+  const apiProxyApiKey = env.API_PROXY_API_KEY?.trim()
 
   return {
     plugins: [react()],
@@ -40,6 +42,11 @@ preview: {
                 target: devProxyConfig.target,
                 changeOrigin: devProxyConfig.changeOrigin,
                 secure: devProxyConfig.secure,
+                headers: apiProxyApiKey
+                  ? {
+                      Authorization: `Bearer ${apiProxyApiKey}`,
+                    }
+                  : undefined,
                 rewrite: (path) =>
                   path.replace(
                     new RegExp(`^${devProxyConfig.prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`),

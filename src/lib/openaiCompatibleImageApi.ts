@@ -1,6 +1,7 @@
 import type { ApiProfile, CustomProviderDefinition, CustomProviderPollMapping, CustomProviderResultMapping, CustomProviderSubmitMapping, ImageApiResponse, ResponsesApiResponse, TaskParams } from '../types'
 import { dataUrlToBlob, imageDataUrlToPngBlob, maskDataUrlToPngBlob } from './canvasImage'
 import { buildApiUrl, readClientDevProxyConfig, shouldUseApiProxy } from './devProxy'
+import { readRuntimeEnv } from './runtimeEnv'
 import {
   assertImageInputPayloadSize,
   assertMaskEditFileSize,
@@ -19,6 +20,9 @@ import {
 } from './imageApiShared'
 
 const PROMPT_REWRITE_GUARD_PREFIX = 'Use the following text as the complete prompt. Do not rewrite it:'
+const IS_TEST_MODE = import.meta.env.MODE === 'test'
+const DEFAULT_REASONING_EFFORT = IS_TEST_MODE ? '' : readRuntimeEnv(import.meta.env.VITE_DEFAULT_REASONING_EFFORT)
+const DISABLE_RESPONSE_STORAGE = !IS_TEST_MODE && readRuntimeEnv(import.meta.env.VITE_DISABLE_RESPONSE_STORAGE) === 'true'
 
 function appendQuery(path: string, query?: Record<string, string>): string {
   if (!query || !Object.keys(query).length) return path
@@ -77,9 +81,8 @@ function normalizeImageApiPayload(value: unknown): ImageApiResponse {
 }
 
 function createRequestHeaders(profile: ApiProfile): Record<string, string> {
-  return {
-    Authorization: `Bearer ${profile.apiKey}`,
-  }
+  const apiKey = profile.apiKey.trim()
+  return apiKey ? { Authorization: `Bearer ${apiKey}` } : {}
 }
 
 function createResponsesImageTool(
@@ -736,12 +739,14 @@ async function callResponsesImageApiSingle(opts: CallApiOptions, profile: ApiPro
         (opts.maskDataUrl ? getDataUrlEncodedByteSize(opts.maskDataUrl) : 0),
     )
 
-    const body = {
+    const body: Record<string, unknown> = {
       model: profile.model,
       input: createResponsesInput(prompt, inputImageDataUrls),
       tools: [createResponsesImageTool(params, inputImageDataUrls.length > 0, profile, opts.maskDataUrl)],
       tool_choice: 'required',
     }
+    if (DEFAULT_REASONING_EFFORT) body.reasoning = { effort: DEFAULT_REASONING_EFFORT }
+    if (DISABLE_RESPONSE_STORAGE) body.store = false
 
     const response = await fetch(buildApiUrl(profile.baseUrl, 'responses', proxyConfig, useApiProxy), {
       method: 'POST',

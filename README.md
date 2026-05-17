@@ -164,9 +164,18 @@ $env:VITE_DEFAULT_API_URL="https://api.openai.com/v1"; npm run deploy:cf
 **环境变量说明：**
 
 - `DEFAULT_API_URL`：设置页面上默认显示的 API 地址。
+- `DEFAULT_API_MODE`：默认接口模式，可选 `images` 或 `responses`。
+- `DEFAULT_MODEL`：默认模型 ID。`DEFAULT_API_MODE=responses` 时可设为 `gpt-5.5`。
+- `DEFAULT_CODEX_CLI`：设为 `true` 时开启 Codex CLI 兼容模式。
+- `DEFAULT_REASONING_EFFORT`：可选。Responses API 请求中追加 `reasoning.effort`，如 `high`。
+- `DISABLE_RESPONSE_STORAGE`：设为 `true` 时 Responses API 请求中追加 `store: false`。
 - `API_PROXY_URL`：配置内置代理实际转发到的目标 API 地址（仅开启代理时有效）。
+- `API_PROXY_API_KEY`：可选。配置后由容器内 Nginx 向上游接口发送 `Authorization: Bearer <key>`，浏览器端不需要保存 API Key。
 - `ENABLE_API_PROXY`：设为 `true` 开启容器内置 Nginx 同源代理，用于解决浏览器跨域（CORS）限制。开启后，前端 **API 代理** 开关默认开启，浏览器会请求同源的 `/api-proxy/`，再由 Nginx 转发至 `API_PROXY_URL`；用户仍可在设置中手动关闭。
 - `LOCK_API_PROXY`：设为 `true` 时，在 `ENABLE_API_PROXY=true` 的前提下将前端 **API 代理** 开关强制锁定为开启，用户无法关闭。
+- `HIDE_API_CONFIG`：设为 `true` 时隐藏设置弹窗中的 **API 配置** 页面。建议与 `ENABLE_API_PROXY=true`、`LOCK_API_PROXY=true`、`API_PROXY_API_KEY` 一起使用。
+- `SHOW_API_CONFIG`：默认 `false`。如需临时恢复前端 **API 配置** 页面，可设为 `true`。
+- `APP_CONFIG_FILE`：可选。Docker 启动时读取的配置文件路径，默认 `/etc/gpt-image-playground/config.env`。文件格式为 `KEY=value`，示例见 `deploy/app.config.example.env`。
 - `HOST` / `PORT`：指定容器内 Nginx 监听的地址和端口（默认 `0.0.0.0:80`）。
 
 > ⚠️ **安全警告**：开启 API 代理后，任何人都能将你的服务器作为代理来请求目标 API。建议仅在有访问控制（如 IP 白名单）或本地网络中开启。
@@ -177,23 +186,54 @@ $env:VITE_DEFAULT_API_URL="https://api.openai.com/v1"; npm run deploy:cf
 
 ```bash
 docker run -d -p 8080:80 \
-  -e DEFAULT_API_URL=https://api.openai.com/v1 \
+  -e DEFAULT_API_URL=https://api.apikey.fun/v1 \
+  -e DEFAULT_API_MODE=responses \
+  -e DEFAULT_MODEL=gpt-5.5 \
+  -e DEFAULT_CODEX_CLI=true \
+  -e DEFAULT_REASONING_EFFORT=high \
+  -e DISABLE_RESPONSE_STORAGE=true \
   -e ENABLE_API_PROXY=true \
   -e LOCK_API_PROXY=true \
-  -e API_PROXY_URL=https://api.openai.com/v1 \
+  -e API_PROXY_URL=https://api.apikey.fun/v1 \
   ghcr.io/cooksleep/gpt_image_playground:latest
 ```
 
 *(注：使用 host 网络时加 `--network host`，修改容器监听端口使用 `-e PORT=28080`)*
 
-**2. Docker Compose 示例**
+**2. 配置文件示例**
+
+也可以把部署配置写成文件并挂载给容器读取：
+
+```bash
+cp deploy/app.config.example.env ./app.config.env
+```
+
+修改 `app.config.env` 中的 `API_PROXY_API_KEY` 后启动：
+
+```bash
+docker run -d -p 8080:80 \
+  -v "$PWD/app.config.env:/etc/gpt-image-playground/config.env:ro" \
+  ghcr.io/cooksleep/gpt_image_playground:latest
+```
+
+**3. Docker Compose 示例**
 
 ```yaml
 services:
   gpt-image-playground:
     image: ghcr.io/cooksleep/gpt_image_playground:latest
     environment:
-      - DEFAULT_API_URL=https://api.openai.com/v1
+      - DEFAULT_API_URL=https://api.apikey.fun/v1
+      - DEFAULT_API_MODE=responses
+      - DEFAULT_MODEL=gpt-5.5
+      - DEFAULT_CODEX_CLI=true
+      - DEFAULT_REASONING_EFFORT=high
+      - DISABLE_RESPONSE_STORAGE=true
+      - ENABLE_API_PROXY=true
+      - LOCK_API_PROXY=true
+      - HIDE_API_CONFIG=true
+      - API_PROXY_URL=https://api.apikey.fun/v1
+      - API_PROXY_API_KEY=sk-your-key
     ports:
       - "8080:80"
     restart: unless-stopped

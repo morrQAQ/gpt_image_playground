@@ -9,6 +9,13 @@ fi
 DEFAULT_API_URL=${DEFAULT_API_URL:-${API_URL:-https://api.openai.com/v1}}
 API_PROXY_URL=${API_PROXY_URL:-${API_URL:-https://api.openai.com/v1}}
 
+if [ -n "$API_PROXY_API_KEY" ]; then
+    API_PROXY_AUTH_HEADER="\"Bearer $API_PROXY_API_KEY\""
+else
+    API_PROXY_AUTH_HEADER='$http_authorization'
+fi
+
 export DEFAULT_API_URL
 export API_PROXY_URL
+export API_PROXY_AUTH_HEADER
 export DOCKER_LEGACY_API_URL_USED

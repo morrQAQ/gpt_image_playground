@@ -1,0 +1,12 @@
+#!/bin/sh
+
+# Optional runtime config file for Docker deployments.
+# The file uses shell-style KEY=value lines and is loaded before nginx renders
+# templates and before the frontend placeholders are injected.
+APP_CONFIG_FILE=${APP_CONFIG_FILE:-/etc/gpt-image-playground/config.env}
+
+if [ -f "$APP_CONFIG_FILE" ]; then
+    set -a
+    . "$APP_CONFIG_FILE"
+    set +a
+fi

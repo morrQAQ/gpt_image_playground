@@ -12,12 +12,18 @@ import type {
   CustomProviderSubmitMapping,
   CustomProviderTemplate,
 } from '../types'
+import { isApiConfigHidden, isApiProxyAuthManaged } from './deploymentConfig'
 import { readRuntimeEnv } from './runtimeEnv'
 
-const DEFAULT_BASE_URL = readRuntimeEnv(import.meta.env.VITE_DEFAULT_API_URL) || 'https://api.openai.com/v1'
-const DEFAULT_OPENAI_API_PROXY = readRuntimeEnv(import.meta.env.VITE_API_PROXY_AVAILABLE) === 'true'
+const IS_TEST_MODE = import.meta.env.MODE === 'test'
+const DEFAULT_BASE_URL = (!IS_TEST_MODE && readRuntimeEnv(import.meta.env.VITE_DEFAULT_API_URL)) || 'https://api.openai.com/v1'
+const DEFAULT_OPENAI_API_PROXY = !IS_TEST_MODE && readRuntimeEnv(import.meta.env.VITE_API_PROXY_AVAILABLE) === 'true'
+const DEFAULT_OPENAI_API_PROXY_LOCKED = !IS_TEST_MODE && readRuntimeEnv(import.meta.env.VITE_API_PROXY_LOCKED) === 'true'
 export const DEFAULT_IMAGES_MODEL = 'gpt-image-2'
 export const DEFAULT_RESPONSES_MODEL = 'gpt-5.5'
+const DEFAULT_OPENAI_API_MODE: ApiMode = !IS_TEST_MODE && readRuntimeEnv(import.meta.env.VITE_DEFAULT_API_MODE) === 'responses' ? 'responses' : 'images'
+const DEFAULT_OPENAI_MODEL = (!IS_TEST_MODE && readRuntimeEnv(import.meta.env.VITE_DEFAULT_MODEL)) || (DEFAULT_OPENAI_API_MODE === 'responses' ? DEFAULT_RESPONSES_MODEL : DEFAULT_IMAGES_MODEL)
+const DEFAULT_OPENAI_CODEX_CLI = !IS_TEST_MODE && readRuntimeEnv(import.meta.env.VITE_DEFAULT_CODEX_CLI) === 'true'
 export const DEFAULT_FAL_BASE_URL = 'https://fal.run'
 export const DEFAULT_FAL_MODEL = 'openai/gpt-image-2'
 export const DEFAULT_OPENAI_PROFILE_ID = 'default-openai'
@@ -262,10 +268,10 @@ export function createDefaultOpenAIProfile(overrides: Partial<ApiProfile> = {}):
     provider: 'openai',
     baseUrl: DEFAULT_BASE_URL,
     apiKey: '',
-    model: DEFAULT_IMAGES_MODEL,
+    model: DEFAULT_OPENAI_MODEL,
     timeout: DEFAULT_API_TIMEOUT,
-    apiMode: 'images',
-    codexCli: false,
+    apiMode: DEFAULT_OPENAI_API_MODE,
+    codexCli: DEFAULT_OPENAI_CODEX_CLI,
     apiProxy: DEFAULT_OPENAI_API_PROXY,
     ...overrides,
   }
@@ -531,6 +537,11 @@ export function importCustomProviderDefinitionFromJson(jsonText: string, existin
 export function getActiveApiProfile(settings: Partial<AppSettings> | unknown): ApiProfile {
   const record = settings && typeof settings === 'object' ? settings as Record<string, unknown> : {}
   const normalized = normalizeSettings(settings)
+
+  if (isApiConfigHidden() && DEFAULT_OPENAI_API_PROXY && DEFAULT_OPENAI_API_PROXY_LOCKED) {
+    return createDefaultOpenAIProfile()
+  }
+
   const profile = normalized.profiles.find((p) => p.id === normalized.activeProfileId) ?? normalized.profiles[0] ?? createDefaultOpenAIProfile()
 
   return {
@@ -546,9 +557,19 @@ export function getActiveApiProfile(settings: Partial<AppSettings> | unknown): A
 }
 
 export function validateApiProfile(profile: ApiProfile): string | null {
+  const hasServerManagedApiConfig =
+    profile.provider === 'openai' &&
+    isApiConfigHidden() &&
+    DEFAULT_OPENAI_API_PROXY &&
+    DEFAULT_OPENAI_API_PROXY_LOCKED
+  const hasServerManagedApiKey =
+    profile.provider === 'openai' &&
+    isApiProxyAuthManaged() &&
+    (profile.apiProxy || DEFAULT_OPENAI_API_PROXY_LOCKED)
+
   if (!profile.name.trim()) return '缺少名称'
   if (profile.provider !== 'fal' && !profile.baseUrl.trim()) return '缺少 API URL'
-  if (!profile.apiKey.trim()) return '缺少 API Key'
+  if (!profile.apiKey.trim() && !hasServerManagedApiKey && !hasServerManagedApiConfig) return '缺少 API Key'
   if (!profile.model.trim()) return '缺少模型 ID'
   return null
 }
@@ -559,10 +580,10 @@ function isDefaultOpenAIProfile(profile: ApiProfile): boolean {
     profile.provider === 'openai' &&
     profile.baseUrl === DEFAULT_BASE_URL &&
     profile.apiKey === '' &&
-    profile.model === DEFAULT_IMAGES_MODEL &&
+    profile.model === DEFAULT_OPENAI_MODEL &&
     profile.timeout === DEFAULT_API_TIMEOUT &&
-    profile.apiMode === 'images' &&
-    profile.codexCli === false &&
+    profile.apiMode === DEFAULT_OPENAI_API_MODE &&
+    profile.codexCli === DEFAULT_OPENAI_CODEX_CLI &&
     profile.apiProxy === DEFAULT_OPENAI_API_PROXY
 }
 
@@ -713,10 +734,10 @@ export function mergeImportedSettings(currentSettings: Partial<AppSettings> | un
 export const DEFAULT_SETTINGS: AppSettings = normalizeSettings({
   baseUrl: DEFAULT_BASE_URL,
   apiKey: '',
-  model: DEFAULT_IMAGES_MODEL,
+  model: DEFAULT_OPENAI_MODEL,
   timeout: DEFAULT_API_TIMEOUT,
-  apiMode: 'images',
-  codexCli: false,
+  apiMode: DEFAULT_OPENAI_API_MODE,
+  codexCli: DEFAULT_OPENAI_CODEX_CLI,
   apiProxy: DEFAULT_OPENAI_API_PROXY,
   customProviders: [],
   clearInputAfterSubmit: false,
