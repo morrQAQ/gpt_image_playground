@@ -26,6 +26,8 @@ RUN npm run build
 # ---- Production stage ----
 FROM nginx:alpine
 
+RUN apk add --no-cache openssl
+
 ENV HOST=0.0.0.0
 ENV PORT=80
 ENV DEFAULT_API_URL=
