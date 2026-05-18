@@ -166,10 +166,14 @@ $env:VITE_DEFAULT_API_URL="https://api.openai.com/v1"; npm run deploy:cf
 - `DEFAULT_API_URL`：设置页面上默认显示的 API 地址。
 - `DEFAULT_API_MODE`：默认接口模式，可选 `images` 或 `responses`。
 - `DEFAULT_MODEL`：默认模型 ID。`DEFAULT_API_MODE=responses` 时可设为 `gpt-5.5`。
+- `DEFAULT_API_TIMEOUT`：前端等待 API 响应的秒数，长耗时同步生图可设为 `1800`。
 - `DEFAULT_CODEX_CLI`：设为 `true` 时开启 Codex CLI 兼容模式。
 - `DEFAULT_REASONING_EFFORT`：可选。Responses API 请求中追加 `reasoning.effort`，如 `high`。
 - `DISABLE_RESPONSE_STORAGE`：设为 `true` 时 Responses API 请求中追加 `store: false`。
+- `RESPONSES_STREAM`：设为 `true` 时 Responses API 请求使用 SSE 流式响应，适合绕开同步长请求超时。
+- `RESPONSES_PARTIAL_IMAGES`：Responses 流式生图的部分图片数量，范围 `0` 到 `3`。
 - `API_PROXY_URL`：配置内置代理实际转发到的目标 API 地址（仅开启代理时有效）。
+- `API_PROXY_CONNECT_TIMEOUT` / `API_PROXY_SEND_TIMEOUT` / `API_PROXY_READ_TIMEOUT`：Nginx 代理超时配置，长耗时同步生图可把 `API_PROXY_READ_TIMEOUT` 设为 `1800s` 或更高。
 - `API_PROXY_API_KEY`：可选。配置后由容器内 Nginx 向上游接口发送 `Authorization: Bearer <key>`，浏览器端不需要保存 API Key。
 - `ENABLE_API_PROXY`：设为 `true` 开启容器内置 Nginx 同源代理，用于解决浏览器跨域（CORS）限制。开启后，前端 **API 代理** 开关默认开启，浏览器会请求同源的 `/api-proxy/`，再由 Nginx 转发至 `API_PROXY_URL`；用户仍可在设置中手动关闭。
 - `LOCK_API_PROXY`：设为 `true` 时，在 `ENABLE_API_PROXY=true` 的前提下将前端 **API 代理** 开关强制锁定为开启，用户无法关闭。

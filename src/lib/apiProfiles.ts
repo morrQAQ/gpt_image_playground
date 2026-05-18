@@ -24,10 +24,13 @@ export const DEFAULT_RESPONSES_MODEL = 'gpt-5.5'
 const DEFAULT_OPENAI_API_MODE: ApiMode = !IS_TEST_MODE && readRuntimeEnv(import.meta.env.VITE_DEFAULT_API_MODE) === 'responses' ? 'responses' : 'images'
 const DEFAULT_OPENAI_MODEL = (!IS_TEST_MODE && readRuntimeEnv(import.meta.env.VITE_DEFAULT_MODEL)) || (DEFAULT_OPENAI_API_MODE === 'responses' ? DEFAULT_RESPONSES_MODEL : DEFAULT_IMAGES_MODEL)
 const DEFAULT_OPENAI_CODEX_CLI = !IS_TEST_MODE && readRuntimeEnv(import.meta.env.VITE_DEFAULT_CODEX_CLI) === 'true'
+const DEFAULT_API_TIMEOUT_SECONDS = Number(readRuntimeEnv(import.meta.env.VITE_DEFAULT_API_TIMEOUT))
 export const DEFAULT_FAL_BASE_URL = 'https://fal.run'
 export const DEFAULT_FAL_MODEL = 'openai/gpt-image-2'
 export const DEFAULT_OPENAI_PROFILE_ID = 'default-openai'
-export const DEFAULT_API_TIMEOUT = 600
+export const DEFAULT_API_TIMEOUT = !IS_TEST_MODE && Number.isFinite(DEFAULT_API_TIMEOUT_SECONDS) && DEFAULT_API_TIMEOUT_SECONDS > 0
+  ? DEFAULT_API_TIMEOUT_SECONDS
+  : 600
 
 const BUILT_IN_PROVIDER_IDS = new Set<ApiProvider>(['openai', 'fal'])
 const DEFAULT_CUSTOM_PROVIDER_PATHS = {

@@ -23,6 +23,8 @@ const PROMPT_REWRITE_GUARD_PREFIX = 'Use the following text as the complete prom
 const IS_TEST_MODE = import.meta.env.MODE === 'test'
 const DEFAULT_REASONING_EFFORT = IS_TEST_MODE ? '' : readRuntimeEnv(import.meta.env.VITE_DEFAULT_REASONING_EFFORT)
 const DISABLE_RESPONSE_STORAGE = !IS_TEST_MODE && readRuntimeEnv(import.meta.env.VITE_DISABLE_RESPONSE_STORAGE) === 'true'
+const RESPONSES_STREAM = !IS_TEST_MODE && readRuntimeEnv(import.meta.env.VITE_RESPONSES_STREAM) === 'true'
+const RESPONSES_PARTIAL_IMAGES = Number(readRuntimeEnv(import.meta.env.VITE_RESPONSES_PARTIAL_IMAGES))
 
 function appendQuery(path: string, query?: Record<string, string>): string {
   if (!query || !Object.keys(query).length) return path
@@ -112,6 +114,10 @@ function createResponsesImageTool(
     }
   }
 
+  if (RESPONSES_STREAM && Number.isFinite(RESPONSES_PARTIAL_IMAGES) && RESPONSES_PARTIAL_IMAGES >= 0) {
+    tool.partial_images = Math.min(3, Math.max(0, Math.floor(RESPONSES_PARTIAL_IMAGES)))
+  }
+
   return tool
 }
 
@@ -167,6 +173,99 @@ function parseResponsesImageResults(payload: ResponsesApiResponse, fallbackMime:
   }
 
   return results
+}
+
+function getResponsesStreamEventPayload(event: unknown): unknown {
+  if (!event || typeof event !== 'object') return null
+  const record = event as Record<string, unknown>
+  if (record.response && typeof record.response === 'object') return record.response
+  if (record.item && typeof record.item === 'object') return { output: [record.item] }
+  return null
+}
+
+async function parseResponsesStream(response: Response, fallbackMime: string): Promise<ResponsesApiResponse> {
+  const reader = response.body?.getReader()
+  if (!reader) throw new Error('接口未返回可读取的流式响应')
+
+  const decoder = new TextDecoder()
+  let buffer = ''
+  let completedPayload: ResponsesApiResponse | null = null
+  let latestPartialImage: string | null = null
+  const rawEvents: unknown[] = []
+
+  const handleEventBlock = (block: string) => {
+    const data = block
+      .split(/\r?\n/)
+      .filter((line) => line.startsWith('data:'))
+      .map((line) => line.slice(5).trimStart())
+      .join('\n')
+      .trim()
+
+    if (!data || data === '[DONE]') return
+
+    let event: unknown
+    try {
+      event = JSON.parse(data)
+    } catch {
+      return
+    }
+
+    rawEvents.push(event)
+    if (!event || typeof event !== 'object') return
+    const record = event as Record<string, unknown>
+    if (record.type === 'error') {
+      const message = typeof record.message === 'string'
+        ? record.message
+        : typeof (record.error as Record<string, unknown> | undefined)?.message === 'string'
+          ? String((record.error as Record<string, unknown>).message)
+          : '接口流式响应返回错误'
+      throw new Error(message)
+    }
+
+    if (record.type === 'response.image_generation_call.partial_image' && typeof record.partial_image_b64 === 'string') {
+      latestPartialImage = record.partial_image_b64
+    }
+
+    if (record.type === 'response.completed') {
+      const payload = getResponsesStreamEventPayload(record)
+      if (payload && typeof payload === 'object') completedPayload = payload as ResponsesApiResponse
+    }
+  }
+
+  try {
+    while (true) {
+      const { value, done } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+
+      let boundary = buffer.search(/\r?\n\r?\n/)
+      while (boundary >= 0) {
+        const block = buffer.slice(0, boundary)
+        buffer = buffer.slice(buffer[boundary] === '\r' ? boundary + 4 : boundary + 2)
+        handleEventBlock(block)
+        boundary = buffer.search(/\r?\n\r?\n/)
+      }
+    }
+    buffer += decoder.decode()
+    if (buffer.trim()) handleEventBlock(buffer)
+  } catch (err) {
+    if (err instanceof Error) throw err
+    throw new Error('接口流式响应解析失败')
+  }
+
+  if (completedPayload) return completedPayload
+  if (latestPartialImage) {
+    return {
+      output: [{
+        type: 'image_generation_call',
+        result: normalizeBase64Image(latestPartialImage, fallbackMime),
+      }],
+    }
+  }
+
+  const err = new Error('接口流式响应未返回图片数据')
+  ;(err as any).rawResponsePayload = JSON.stringify(rawEvents, null, 2)
+  throw err
 }
 
 async function parseImagesApiResponse(payload: ImageApiResponse, mime: string, signal?: AbortSignal): Promise<CallApiResult> {
@@ -747,6 +846,7 @@ async function callResponsesImageApiSingle(opts: CallApiOptions, profile: ApiPro
     }
     if (DEFAULT_REASONING_EFFORT) body.reasoning = { effort: DEFAULT_REASONING_EFFORT }
     if (DISABLE_RESPONSE_STORAGE) body.store = false
+    if (RESPONSES_STREAM) body.stream = true
 
     const response = await fetch(buildApiUrl(profile.baseUrl, 'responses', proxyConfig, useApiProxy), {
       method: 'POST',
@@ -763,7 +863,9 @@ async function callResponsesImageApiSingle(opts: CallApiOptions, profile: ApiPro
       throw new Error(await getApiErrorMessage(response))
     }
 
-    const payload = await response.json() as ResponsesApiResponse
+    const payload = RESPONSES_STREAM
+      ? await parseResponsesStream(response, mime)
+      : await response.json() as ResponsesApiResponse
     const imageResults = parseResponsesImageResults(payload, mime)
     const actualParams = mergeActualParams(
       imageResults[0]?.actualParams ?? {},
